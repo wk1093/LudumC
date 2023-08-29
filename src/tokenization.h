@@ -6,6 +6,13 @@
 #include <iostream>
 #include <optional>
 
+#define peekhas(i) peek(i).has_value()
+#define peekval(i) peek(i).value()
+
+
+#define tok_c(ch, tok) if (peek().value() == ch) {consume();tokens.emplace_back(tok);}
+#define tok_k(str, tok) if (buf == str) {tokens.emplace_back(tok);}
+
 enum class TokenType { // k_ = keyword l_ = literal c_ = char/symbol b_ = builtin
     err, // 0
 
@@ -32,6 +39,10 @@ enum class TokenType { // k_ = keyword l_ = literal c_ = char/symbol b_ = builti
     c_lparen,
     c_rparen,
     c_eq,
+    c_plus,
+    c_minus,
+    c_star,
+    c_slash,
 };
 
 struct Token {
@@ -52,40 +63,33 @@ public:
         std::string buf;
         std::vector<Token> tokens;
 
-        while (peek().has_value()) {
-            if (std::isalpha(peek().value()) || peek().value() == '_') {
+        while (peekhas()) {
+            if (std::isalpha(peekval()) || peekval() == '_') {
                 buf.push_back(consume());
-                while (peek().has_value() && (std::isalnum(peek().value()) || peek().value() == '_')) {
+                while (peekhas() && (std::isalnum(peekval()) || peekval() == '_')) {
                     buf.push_back(consume());
                 }
-                if (buf == "exit") {
-                    tokens.emplace_back(TokenType::b_exit);
-                } else if (buf == "if") {
-                    tokens.emplace_back(TokenType::k_if);
-                } else if (buf == "else") {
-                    tokens.emplace_back(TokenType::k_else);
-                } else if (buf == "while") {
-                    tokens.emplace_back(TokenType::k_while);
-                } else if (buf == "for") {
-                    tokens.emplace_back(TokenType::k_for);
-                } else if (buf == "break") {
-                    tokens.emplace_back(TokenType::k_break);
-                } else if (buf == "continue") {
-                    tokens.emplace_back(TokenType::k_continue);
-                } else if (buf == "let") {
-                    tokens.emplace_back(TokenType::k_let);
-                } else {
+                tok_k("exit", TokenType::b_exit)
+                else tok_k("if", TokenType::k_if)
+                else tok_k("else", TokenType::k_else)
+                else tok_k("while", TokenType::k_while)
+                else tok_k("for", TokenType::k_for)
+                else tok_k("break", TokenType::k_break)
+                else tok_k("continue", TokenType::k_continue)
+                else tok_k("let", TokenType::k_let)
+                else tok_k("return", TokenType::k_return)
+                else {
                     tokens.emplace_back(TokenType::ident, buf);
                 }
                 buf.clear();
-            } else if (std::isdigit(peek().value())) {
+            } else if (std::isdigit(peekval())) {
                 buf.push_back(consume());
-                while (peek().has_value() && std::isdigit(peek().value())) { // TODO: test floats
+                while (peekhas() && std::isdigit(peekval())) {
                     buf.push_back(consume());
                 }
-                if (peek().has_value() && peek().value() == '.') {
+                if (peekhas() && peekval() == '.') {
                     buf.push_back(consume());
-                    while (peek().has_value() && std::isdigit(peek().value())) {
+                    while (peekhas() && std::isdigit(peekval())) {
                         buf.push_back(consume());
                     }
                     tokens.emplace_back(TokenType::l_float, buf);
@@ -93,22 +97,18 @@ public:
                     tokens.emplace_back(TokenType::l_int, buf);
                 }
                 buf.clear();
-            } else if (peek().value() == ';') {
-                consume();
-                tokens.emplace_back(TokenType::c_semi);
-            } else if (peek().value() == '(') {
-                consume();
-                tokens.emplace_back(TokenType::c_lparen);
-            } else if (peek().value() == ')') {
-                consume();
-                tokens.emplace_back(TokenType::c_rparen);
-            }else if (peek().value() == '=') {
-                consume();
-                tokens.emplace_back(TokenType::c_eq);
-            } else if (std::isspace(peek().value())) {
+            } else tok_c(';', TokenType::c_semi)
+            else tok_c('(', TokenType::c_lparen)
+            else tok_c(')', TokenType::c_rparen)
+            else tok_c('=', TokenType::c_eq)
+            else tok_c('+', TokenType::c_plus)
+            else tok_c('-', TokenType::c_minus)
+            else tok_c('*', TokenType::c_star)
+            else tok_c('/', TokenType::c_slash)
+            else if (std::isspace(peekval())) {
                 consume();
             } else {
-                std::cerr << "Unrecognized character: '" << peek().value() << "'" << std::endl;
+                std::cerr << "Unrecognized character: '" << peekval() << "'" << std::endl;
                 exit(-1);
             }
         }

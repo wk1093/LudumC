@@ -9,59 +9,63 @@ class Generator {
 public:
     explicit Generator(NodeProg prog) : m_prog(std::move(prog)) {}
 
-    void gen_expr(const NodeExpr& expr) {
+    void gen_expr(const NodeExpr* expr) {
         struct ExprVisitor {
             Generator* gen;
             explicit ExprVisitor(Generator* gen) : gen(gen) {}
 
-            void operator()(const NodeExprIntLit& int_lit) const {
-                gen->m_output << "mov rax, " << int_lit.int_lit.value.value() << "\n";
+            void operator()(const NodeExprIntLit* int_lit) const {
+                gen->m_output << "mov rax, " << int_lit->int_lit.value.value() << "\n";
                 gen->push("rax");
             }
-            void operator()(const NodeExprIdent& ident) const {
-                if (!gen->m_vars.contains(ident.ident.value.value())) {
-                    std::cerr << "ERR: Variable '" << ident.ident.value.value() << "' does not exist" << std::endl;
+            void operator()(const NodeExprIdent* ident) const {
+                if (!gen->m_vars.contains(ident->ident.value.value())) {
+                    std::cerr << "ERR: Variable '" << ident->ident.value.value() << "' does not exist" << std::endl;
                     exit(1);
                 }
-                gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(ident.ident.value.value()).stack_loc - 1) * 8) + "]\n");
+                gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(ident->ident.value.value()).stack_loc - 1) * 8) + "]\n");
 
+            }
+            void operator()(const NodeBinExpr* bin_expr_add) const {
+                std::cerr << "ERR: Not implemented" << std::endl;
+                exit(1);
             }
         };
 
         ExprVisitor visitor(this);
-        std::visit(visitor, expr.var);
+        std::visit(visitor, expr->var);
     }
 
-    void gen_stmt(const NodeStmt& stmt) {
+    void gen_stmt(const NodeStmt* stmt) {
         struct StmtVisitor {
             Generator* gen;
             explicit StmtVisitor(Generator* gen) : gen(gen) {}
 
-            void operator()(const NodeStmtExit& stmt_exit) const {
-                gen->gen_expr(stmt_exit.expr);
+            void operator()(const NodeStmtExit* stmt_exit) const {
+                gen->gen_expr(stmt_exit->expr);
                 gen->m_output << "mov rax, 60\n";
                 gen->pop("rdi");
                 gen->m_output << "syscall\n";
             }
-            void operator()(const NodeStmtLet& stmt_let) const {
-                if (gen->m_vars.contains(stmt_let.ident.value.value())) {
-                    std::cerr << "ERR: Variable '" << stmt_let.ident.value.value() << "' already exists" << std::endl;
+            void operator()(const NodeStmtLet* stmt_let) const {
+                if (gen->m_vars.contains(stmt_let->ident.value.value())) {
+                    std::cerr << "ERR: Variable '" << stmt_let->ident.value.value() << "' already exists" << std::endl;
                     exit(1);
                 }
-                gen->m_vars.insert({stmt_let.ident.value.value(), Var{.stack_loc = gen->m_stack_size}});
-                gen->gen_expr(stmt_let.expr);
+                gen->m_vars.insert({stmt_let->ident.value.value(), Var{.stack_loc = gen->m_stack_size}});
+                gen->gen_expr(stmt_let->expr);
             }
         };
 
         StmtVisitor visitor(this);
-        std::visit(visitor, stmt.var);
+        std::visit(visitor, stmt->var);
     }
 
     [[nodiscard]] std::string gen_prog() {
         std::stringstream output;
         m_output << "global _start\n_start:\n";
 
-        for (const NodeStmt& stmt : m_prog.stmts) {
+        for (const NodeStmt* stmt : m_prog.stmts) {
             gen_stmt(stmt);
         }
 
