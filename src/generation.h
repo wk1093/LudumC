@@ -5,108 +5,89 @@
 #include <unordered_map>
 #include "parser.h"
 
+// TODO: get rid of this godawful syntactic mess
+// why have I done this
+#define mk_vis_b() struct _MyVisitor { Generator* gen; explicit _MyVisitor(Generator* gen) : gen(gen) {}
+#define mk_vis_e(input) }; _MyVisitor _vis(this); std::visit(_vis, input);
+#define vis(tdec) void operator()(const tdec* i) const
 class Generator {
 public:
     explicit Generator(NodeProg prog) : m_prog(std::move(prog)) {}
 
     void gen_term(const NodeTerm* term) {
-        struct TermVisitor {
-            Generator* gen;
-            explicit TermVisitor(Generator* gen) : gen(gen) {}
-
-            void operator()(const NodeTermIntLit* int_lit) const {
-                gen->m_output << "mov rax, " << int_lit->int_lit.value.value() << "\n";
-                gen->push("rax");
-            }
-            void operator()(const NodeTermIdent* ident) const {
-                if (!gen->m_vars.contains(ident->ident.value.value())) {
-                    std::cerr << "ERR: Variable '" << ident->ident.value.value() << "' does not exist" << std::endl;
-                    exit(1);
-                }
-                gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(ident->ident.value.value()).stack_loc - 1) * 8) + "]\n");
-            }
-        };
-
-        TermVisitor visitor(this);
-        std::visit(visitor, term->var);
+        mk_vis_b()
+           vis(NodeTermIntLit) {
+               gen->m_output << "mov rax, " << i->int_lit.value.value() << "\n";
+               gen->push("rax");
+           }
+           vis(NodeTermIdent) {
+               if (!gen->m_vars.contains(i->ident.value.value())) {
+                   std::cerr << "ERR: Variable '" << i->ident.value.value() << "' does not exist" << std::endl;
+                   exit(1);
+               }
+               gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(i->ident.value.value()).stack_loc - 1) * 8) + "]\n");
+           }
+        mk_vis_e(term->var)
     }
 
     void gen_bin_expr(const NodeBinExpr* binexpr) {
-        struct BinVisitor {
-            Generator* gen;
-            explicit BinVisitor(Generator* gen) : gen(gen) {}
-
-            void operator()(const NodeBinExprAdd* bin_expr_add) const {
-                gen->gen_expr(bin_expr_add->lhs);
-                gen->gen_expr(bin_expr_add->rhs);
+        mk_vis_b()
+            vis(NodeBinExprAdd) {
+                gen->gen_expr(i->lhs);
+                gen->gen_expr(i->rhs);
                 gen->pop("rdi");
                 gen->pop("rax");
                 gen->m_output << "add rax, rdi\n";
                 gen->push("rax");
             }
-            void operator()(const NodeBinExprSub* bin_expr_sub) const {
-                gen->gen_expr(bin_expr_sub->lhs);
-                gen->gen_expr(bin_expr_sub->rhs);
+            vis(NodeBinExprSub) {
+                gen->gen_expr(i->lhs);
+                gen->gen_expr(i->rhs);
                 gen->pop("rdi");
                 gen->pop("rax");
                 gen->m_output << "sub rax, rdi\n";
                 gen->push("rax");
 
             }
-            void operator()(const NodeBinExprDiv* bin_expr_div) const {
+            vis(NodeBinExprDiv) {
                 std::cout << "Dividing not implemented" << std::endl;
                 exit(1);
             }
-            void operator()(const NodeBinExprMul* bin_expr_mul) const {
+            vis(NodeBinExprMul) {
                 std::cout << "Multiplying not implemented" << std::endl;
                 exit(1);
             }
-        };
-
-        BinVisitor visitor(this);
-        std::visit(visitor, binexpr->var);
+        mk_vis_e(binexpr->var)
     }
 
     void gen_expr(const NodeExpr* expr) {
-        struct ExprVisitor {
-            Generator* gen;
-            explicit ExprVisitor(Generator* gen) : gen(gen) {}
-
-            void operator()(const NodeTerm* term) const {
-                gen->gen_term(term);
+        mk_vis_b()
+            vis(NodeTerm) {
+                gen->gen_term(i);
             }
-            void operator()(const NodeBinExpr* bin_expr_add) const {
-                gen->gen_bin_expr(bin_expr_add);
+            vis(NodeBinExpr) {
+                gen->gen_bin_expr(i);
             }
-        };
-
-        ExprVisitor visitor(this);
-        std::visit(visitor, expr->var);
+        mk_vis_e(expr->var)
     }
 
     void gen_stmt(const NodeStmt* stmt) {
-        struct StmtVisitor {
-            Generator* gen;
-            explicit StmtVisitor(Generator* gen) : gen(gen) {}
-
-            void operator()(const NodeStmtExit* stmt_exit) const {
-                gen->gen_expr(stmt_exit->expr);
+        mk_vis_b()
+            vis(NodeStmtExit) {
+                gen->gen_expr(i->expr);
                 gen->m_output << "mov rax, 60\n";
                 gen->pop("rdi");
                 gen->m_output << "syscall\n";
             }
-            void operator()(const NodeStmtLet* stmt_let) const {
-                if (gen->m_vars.contains(stmt_let->ident.value.value())) {
-                    std::cerr << "ERR: Variable '" << stmt_let->ident.value.value() << "' already exists" << std::endl;
+            vis(NodeStmtLet) {
+                if (gen->m_vars.contains(i->ident.value.value())) {
+                    std::cerr << "ERR: Variable '" << i->ident.value.value() << "' already exists" << std::endl;
                     exit(1);
                 }
-                gen->m_vars.insert({stmt_let->ident.value.value(), Var{.stack_loc = gen->m_stack_size}});
-                gen->gen_expr(stmt_let->expr);
+                gen->m_vars.insert({i->ident.value.value(), Var{.stack_loc = gen->m_stack_size}});
+                gen->gen_expr(i->expr);
             }
-        };
-
-        StmtVisitor visitor(this);
-        std::visit(visitor, stmt->var);
+        mk_vis_e(stmt->var)
     }
 
     [[nodiscard]] std::string gen_prog() {
@@ -116,7 +97,6 @@ public:
         for (const NodeStmt* stmt : m_prog.stmts) {
             gen_stmt(stmt);
         }
-
 
         m_output << "mov rax, 60\n";
         m_output << "mov rdi, 0\n";

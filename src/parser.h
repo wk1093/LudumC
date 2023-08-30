@@ -12,6 +12,8 @@
 
 #define new_falc(T, body, ...) static T* _new(ArenaAllocator* m_allocator,##__VA_ARGS__) { auto* x = m_allocator->alloc<T>(); body; return x; }
 
+// TODO: clean up this mess of macros and structs
+
 struct NodeTermIntLit {
     Token int_lit;
 
@@ -58,7 +60,6 @@ struct NodeTerm {
     std::variant<NodeTermIntLit *, NodeTermIdent *> var;
 
     new_falc(NodeTerm, x->var = var, NodeTermIntLit *var);
-
     new_falc(NodeTerm, x->var = var, NodeTermIdent *var);
 };
 
@@ -66,7 +67,6 @@ struct NodeExpr {
     std::variant<NodeTerm *, NodeBinExpr *> var;
 
     new_falc(NodeExpr, x->var = var, NodeTerm *var);
-
     new_falc(NodeExpr, x->var = var, NodeBinExpr *var);
 };
 
@@ -74,7 +74,6 @@ struct NodeStmtExit {
     NodeExpr *expr;
 
     new_falc(NodeStmtExit, x->expr = expr, NodeExpr *expr);
-
     new_falc(NodeStmtExit, x->expr = nullptr);
 };
 
@@ -83,7 +82,6 @@ struct NodeStmtLet {
     NodeExpr *expr{};
 
     new_falc(NodeStmtLet, x->ident = std::move(ident); x->expr = expr, Token ident, NodeExpr *expr);
-
     new_falc(NodeStmtLet, x->ident = std::move(ident); x->expr = nullptr, Token ident);
 };
 
@@ -91,7 +89,6 @@ struct NodeStmt {
     std::variant<NodeStmtExit *, NodeStmtLet *> var;
 
     new_falc(NodeStmt, x->var = var, NodeStmtExit *var);
-
     new_falc(NodeStmt, x->var = var, NodeStmtLet *var);
 };
 
@@ -146,6 +143,9 @@ public:
         return std::nullopt;
     }
 
+#define check_consume(ttype, msg) if (peekc().type == ttype ) { consume(); } else {std::cerr << (msg) << std::endl;exit(1);}
+
+
     std::optional<NodeStmt *> parse_stmt() {
         if (peekc().type == TokenType::b_exit && peekc(1).type == TokenType::c_lparen) {
             consume();
@@ -158,18 +158,8 @@ public:
                 std::cerr << "got token type " << (int) peekval().type << std::endl;
                 exit(1);
             }
-            if (peekc().type == TokenType::c_rparen) {
-                consume();
-            } else {
-                std::cerr << "Expected ')' after exit" << std::endl;
-                exit(1);
-            }
-            if (peekc().type == TokenType::c_semi) {
-                consume();
-            } else {
-                std::cerr << "Expected ';' after exit" << std::endl;
-                exit(1);
-            }
+            check_consume(TokenType::c_rparen, "Expected ')' after exit");
+            check_consume(TokenType::c_semi, "Expected ';' after exit");
             return aalloc(NodeStmt, stmt_exit);
         } else if (peekc().type == TokenType::k_let && peekc(1).type == TokenType::ident &&
                    peekc(2).type == TokenType::c_eq) {
@@ -183,12 +173,7 @@ public:
                 std::cerr << "got token type " << (int) peekval().type << std::endl;
                 exit(1);
             }
-            if (peekc().type == TokenType::c_semi) {
-                consume();
-            } else {
-                std::cerr << "Expected ';' after let" << std::endl;
-                exit(1);
-            }
+            check_consume(TokenType::c_semi, "Expected ';' after let");
             return aalloc(NodeStmt, stmt_let);
         } else {
             std::cerr << "Invalid statement" << std::endl;
