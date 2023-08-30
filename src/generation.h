@@ -9,26 +9,74 @@ class Generator {
 public:
     explicit Generator(NodeProg prog) : m_prog(std::move(prog)) {}
 
-    void gen_expr(const NodeExpr* expr) {
-        struct ExprVisitor {
+    void gen_term(const NodeTerm* term) {
+        struct TermVisitor {
             Generator* gen;
-            explicit ExprVisitor(Generator* gen) : gen(gen) {}
+            explicit TermVisitor(Generator* gen) : gen(gen) {}
 
-            void operator()(const NodeExprIntLit* int_lit) const {
+            void operator()(const NodeTermIntLit* int_lit) const {
                 gen->m_output << "mov rax, " << int_lit->int_lit.value.value() << "\n";
                 gen->push("rax");
             }
-            void operator()(const NodeExprIdent* ident) const {
+            void operator()(const NodeTermIdent* ident) const {
                 if (!gen->m_vars.contains(ident->ident.value.value())) {
                     std::cerr << "ERR: Variable '" << ident->ident.value.value() << "' does not exist" << std::endl;
                     exit(1);
                 }
                 gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(ident->ident.value.value()).stack_loc - 1) * 8) + "]\n");
+            }
+        };
+
+        TermVisitor visitor(this);
+        std::visit(visitor, term->var);
+    }
+
+    void gen_bin_expr(const NodeBinExpr* binexpr) {
+        struct BinVisitor {
+            Generator* gen;
+            explicit BinVisitor(Generator* gen) : gen(gen) {}
+
+            void operator()(const NodeBinExprAdd* bin_expr_add) const {
+                gen->gen_expr(bin_expr_add->lhs);
+                gen->gen_expr(bin_expr_add->rhs);
+                gen->pop("rdi");
+                gen->pop("rax");
+                gen->m_output << "add rax, rdi\n";
+                gen->push("rax");
+            }
+            void operator()(const NodeBinExprSub* bin_expr_sub) const {
+                gen->gen_expr(bin_expr_sub->lhs);
+                gen->gen_expr(bin_expr_sub->rhs);
+                gen->pop("rdi");
+                gen->pop("rax");
+                gen->m_output << "sub rax, rdi\n";
+                gen->push("rax");
 
             }
-            void operator()(const NodeBinExpr* bin_expr_add) const {
-                std::cerr << "ERR: Not implemented" << std::endl;
+            void operator()(const NodeBinExprDiv* bin_expr_div) const {
+                std::cout << "Dividing not implemented" << std::endl;
                 exit(1);
+            }
+            void operator()(const NodeBinExprMul* bin_expr_mul) const {
+                std::cout << "Multiplying not implemented" << std::endl;
+                exit(1);
+            }
+        };
+
+        BinVisitor visitor(this);
+        std::visit(visitor, binexpr->var);
+    }
+
+    void gen_expr(const NodeExpr* expr) {
+        struct ExprVisitor {
+            Generator* gen;
+            explicit ExprVisitor(Generator* gen) : gen(gen) {}
+
+            void operator()(const NodeTerm* term) const {
+                gen->gen_term(term);
+            }
+            void operator()(const NodeBinExpr* bin_expr_add) const {
+                gen->gen_bin_expr(bin_expr_add);
             }
         };
 

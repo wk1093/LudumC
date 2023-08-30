@@ -1,10 +1,25 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <cstring>
 // https://youtu.be/8PpARII2ytM?si=TNfG_-SHHIIuGd9O&t=3253
 #include "tokenization.h"
 #include "parser.h"
 #include "generation.h"
+
+void secure_system(const char* str) {
+    int status = system(str);
+    if (status < 0)
+        std::cout << "ERR" << strerror(errno) << std::endl;
+    else {
+        if (WIFEXITED(status)) {
+            if (WEXITSTATUS(status) != 0)
+                std::cout << "ERR " << WEXITSTATUS(status) << std::endl;
+        }
+        else
+            std::cout << "Exited abnormally" << std::endl;
+    }
+}
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -37,8 +52,8 @@ int main(int argc, char* argv[]) {
     ofile.close();
 
 
-    system("nasm -felf64 -o out.o out.asm");
-    system("ld -o out out.o");
+    secure_system("nasm -felf64 -o out.o out.asm");
+    secure_system("ld -o out out.o");
 
     return 0;
 }
