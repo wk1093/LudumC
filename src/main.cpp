@@ -7,6 +7,8 @@
 #include "parser.h"
 #include "generation.h"
 
+// TODO: when done, split .h into .h and .cpp
+
 void secure_system(const char* str) {
     int status = system(str);
     if (status < 0)
@@ -45,7 +47,7 @@ int main(int argc, char* argv[]) {
     }
     Generator generator(std::move(tree.value()));
     auto code = generator.gen_prog();
-    std::cout << code << std::endl;
+//    std::cout << code << std::endl;
 
     std::ofstream ofile("out.asm");
     ofile << code;
