@@ -41,6 +41,7 @@ new_binex(NodeBinExprMul)
 new_binex(NodeBinExprSub)
 new_binex(NodeBinExprDiv)
 // TODO: more bin exprs
+// TODO: correct order of operations (how tf i do this)
 
 struct NodeBinExpr {
     std::variant<NodeBinExprAdd*, NodeBinExprMul*, NodeBinExprSub*, NodeBinExprDiv*> var;
