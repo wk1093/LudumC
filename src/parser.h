@@ -189,7 +189,7 @@ public:
                 prog.stmts.push_back(stmt.value());
 
             } else {
-                std::cerr << "Invalid statement" << std::endl;
+                std::cerr << "Invalid statement in program" << std::endl;
                 std::cerr << "got token type " << (int) peekval().type << std::endl;
                 exit(1);
             }

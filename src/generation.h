@@ -25,7 +25,7 @@ public:
                    std::cerr << "ERR: Variable '" << i->ident.value.value() << "' does not exist" << std::endl;
                    exit(1);
                }
-               gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(i->ident.value.value()).stack_loc - 1) * 8) + "]\n");
+               gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(i->ident.value.value()).stack_loc - 1) * 8) + "]");
            }
         mk_vis_e(term->var)
     }
@@ -74,12 +74,14 @@ public:
     void gen_stmt(const NodeStmt* stmt) {
         mk_vis_b()
             vis(NodeStmtExit) {
+                gen->m_output << "; exit\n";
                 gen->gen_expr(i->expr);
                 gen->m_output << "mov rax, 60\n";
                 gen->pop("rdi");
                 gen->m_output << "syscall\n";
             }
             vis(NodeStmtLet) {
+                gen->m_output << "; let\n";
                 if (gen->m_vars.contains(i->ident.value.value())) {
                     std::cerr << "ERR: Variable '" << i->ident.value.value() << "' already exists" << std::endl;
                     exit(1);
