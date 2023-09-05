@@ -35,17 +35,17 @@ public:
             vis(NodeBinExprAdd) {
                 gen->gen_expr(i->lhs);
                 gen->gen_expr(i->rhs);
-                gen->pop("rdi");
+                gen->pop("rbx");
                 gen->pop("rax");
-                gen->m_output << "add rax, rdi\n";
+                gen->m_output << "add rax, rbx\n";
                 gen->push("rax");
             }
             vis(NodeBinExprSub) {
                 gen->gen_expr(i->lhs);
                 gen->gen_expr(i->rhs);
-                gen->pop("rdi");
+                gen->pop("rbx");
                 gen->pop("rax");
-                gen->m_output << "sub rax, rdi\n";
+                gen->m_output << "sub rax, rbx\n";
                 gen->push("rax");
 
             }
@@ -54,8 +54,12 @@ public:
                 exit(1);
             }
             vis(NodeBinExprMul) {
-                std::cout << "Multiplying not implemented" << std::endl;
-                exit(1);
+                gen->gen_expr(i->lhs);
+                gen->gen_expr(i->rhs);
+                gen->pop("rbx");
+                gen->pop("rax");
+                gen->m_output << "mul rbx\n";
+                gen->push("rax");
             }
         mk_vis_e(binexpr->var)
     }

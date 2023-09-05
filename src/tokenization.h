@@ -45,6 +45,16 @@ enum class TokenType { // k_ = keyword l_ = literal c_ = char/symbol b_ = builti
     c_slash,
 };
 
+std::optional<int> bin_prec(TokenType type) {
+    if (type == TokenType::c_plus || type == TokenType::c_minus) {
+        return 0;
+    } else if (type == TokenType::c_star || type == TokenType::c_slash) {
+        return 1;
+    } else {
+        return std::nullopt;
+    }
+}
+
 struct Token {
     Token(TokenType type, std::string value) : type(type), value(value) {}
     explicit Token(TokenType type) : type(type) {}

@@ -112,35 +112,52 @@ public:
         }
     }
 
-#define parse_bin_expr(name, typen) auto bin_expr = aalloc(NodeBinExpr);\
-    auto lhs_ex = aalloc(NodeExpr, term.value());\
-    auto bin_expr_ = aalloc(typen, lhs_ex);\
-    consume();\
-    if (auto rhs = parse_expr()) {\
-        bin_expr_->rhs = rhs.value();\
-        bin_expr->var = bin_expr_;\
-        return aalloc(NodeExpr, bin_expr);\
-    } else {\
-        std::cerr << "Invalid expression in name" << #name << std::endl;\
-        std::cerr << "got token type " << (int) peekval().type << std::endl;\
-        exit(1);\
-    }
-
-    std::optional<NodeExpr *> parse_expr() {
-        if (auto term = parse_term()) {
-            if (peekc().type == TokenType::c_plus) {
-                parse_bin_expr(add, NodeBinExprAdd);
-            } else if (peekc().type == TokenType::c_minus) {
-                parse_bin_expr(minus, NodeBinExprSub);
-            } else if (peekc().type == TokenType::c_star) {
-                parse_bin_expr(mul, NodeBinExprMul);
-            } else if (peekc().type == TokenType::c_slash) {
-                parse_bin_expr(div, NodeBinExprDiv);
-            } else {
-                return aalloc(NodeExpr, term.value());
-            }
+    std::optional<NodeExpr *> parse_expr(int min_prec = 0) {
+        auto term_lhs = parse_term();
+        if (!term_lhs.has_value()) {
+            std::cerr << "Invalid expression" << std::endl;
+            std::cerr << "got token type " << (int) peekval().type << std::endl;
+            exit(1);
         }
-        return std::nullopt;
+        auto lexpr = aalloc(NodeExpr, term_lhs.value());
+        // use precedence climbing
+        while (true) {
+            auto next = peek();
+            std::optional<int> prec;
+            if (next.has_value()) {
+                prec = bin_prec(next.value().type);
+                if (!prec.has_value() || prec.value() < min_prec) {
+                    break;
+                }
+            } else {
+                break;
+            }
+
+            int next_min_prec = prec.value() + 1;
+            auto op = consume();
+            auto term_rhs = parse_expr(next_min_prec);
+            if (!term_rhs.has_value()) {
+                std::cerr << "Invalid expressiona" << std::endl;
+                std::cerr << "OP" << (int) op.type << std::endl;
+                std::cerr << "got token type " << (int) peekval().type << std::endl;
+                exit(1);
+            }
+            auto expr =  aalloc(NodeBinExpr);
+            auto lhs2 = aalloc(NodeExpr, expr);
+#define binop(tok, typ) if (op.type == tok) { lhs2->var = lexpr->var; auto mbinex = aalloc(typ, lhs2, term_rhs.value()); expr->var = mbinex; }
+            binop(TokenType::c_plus, NodeBinExprAdd)
+            else binop(TokenType::c_minus, NodeBinExprSub)
+            else binop(TokenType::c_star, NodeBinExprMul)
+            else binop(TokenType::c_slash, NodeBinExprDiv)
+#undef binop
+            else {
+                std::cerr << "Invalid expressionb" << std::endl;
+                std::cerr << "got token type " << (int) peekval().type << std::endl;
+                exit(1);
+            }
+            lexpr->var = expr;
+        }
+        return lexpr;
     }
 
 #define check_consume(ttype, msg) if (peekc().type == ttype ) { consume(); } else {std::cerr << (msg) << std::endl;exit(1);}

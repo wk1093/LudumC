@@ -2,25 +2,28 @@
 #include <fstream>
 #include <sstream>
 #include <cstring>
-// https://youtu.be/8PpARII2ytM?si=TNfG_-SHHIIuGd9O&t=3253
 #include "tokenization.h"
 #include "parser.h"
 #include "generation.h"
-
+// https://youtu.be/6nl5HTGgvnk?si=e177bxcrGldEJujs&t=2690
 // TODO: when done, split .h into .h and .cpp
 
-void secure_system(const char* str) {
+bool secure_system(const char* str) {
     int status = system(str);
     if (status < 0)
         std::cout << "ERR" << strerror(errno) << std::endl;
     else {
         if (WIFEXITED(status)) {
-            if (WEXITSTATUS(status) != 0)
+            if (WEXITSTATUS(status) != 0) {
                 std::cout << "ERR " << WEXITSTATUS(status) << std::endl;
+            } else {
+                return false;
+            }
         }
         else
             std::cout << "Exited abnormally" << std::endl;
     }
+    return true;
 }
 
 int main(int argc, char* argv[]) {
@@ -54,8 +57,8 @@ int main(int argc, char* argv[]) {
     ofile.close();
 
 
-    secure_system("nasm -felf64 -o out.o out.asm");
-    secure_system("ld -o out out.o");
+    if (!secure_system("nasm -felf64 -o out.o out.asm"))
+        secure_system("ld -o out out.o");
 
     return 0;
 }
