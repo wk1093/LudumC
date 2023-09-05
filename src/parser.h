@@ -28,6 +28,20 @@ struct NodeTermIdent {
 
 struct NodeExpr;
 
+struct NodeTermParen {
+    NodeExpr *expr;
+
+    new_falc(NodeTermParen, x->expr = expr, NodeExpr *expr);
+};
+
+struct NodeTerm {
+    std::variant<NodeTermIntLit *, NodeTermIdent *, NodeTermParen*> var;
+
+    new_falc(NodeTerm, x->var = var, NodeTermIntLit *var);
+    new_falc(NodeTerm, x->var = var, NodeTermIdent *var);
+    new_falc(NodeTerm, x->var = var, NodeTermParen *var);
+};
+
 #define new_binex(name)\
 struct name {\
 NodeExpr* lhs;\
@@ -54,13 +68,6 @@ struct NodeBinExpr {
     new_falc(NodeBinExpr, x->var = var, NodeBinExprDiv *var);
 
     new_falc(NodeBinExpr,);
-};
-
-struct NodeTerm {
-    std::variant<NodeTermIntLit *, NodeTermIdent *> var;
-
-    new_falc(NodeTerm, x->var = var, NodeTermIntLit *var);
-    new_falc(NodeTerm, x->var = var, NodeTermIdent *var);
 };
 
 struct NodeExpr {
@@ -95,7 +102,7 @@ struct NodeStmt {
 struct NodeProg {
     std::vector<NodeStmt *> stmts;
 };
-
+#define check_consume(ttype, msg) if (peekc().type == ttype ) { consume(); } else {std::cerr << (msg) << std::endl;exit(1);}
 class Parser {
 public:
     explicit Parser(std::vector<Token> tokens) : m_tokens(std::move(tokens)), m_allocator(1024 * 1024 * 4) {} // 4 MB
@@ -107,6 +114,17 @@ public:
         } else if (peekc().type == TokenType::ident) {
             auto term_ident = aalloc(NodeTermIdent, consume());
             return aalloc(NodeTerm, term_ident);
+        } else if (peekc().type == TokenType::c_lparen) {
+            consume();
+            auto expr = parse_expr();
+            if (!expr.has_value()) {
+                std::cerr << "Invalid expression in parenthesis" << std::endl;
+                std::cerr << "got token type " << (int) peekval().type << std::endl;
+                exit(1);
+            }
+            check_consume(TokenType::c_rparen, "Expected ')' after expression in parenthesis");
+            auto term_paren = aalloc(NodeTermParen, expr.value());
+            return aalloc(NodeTerm, term_paren);
         } else {
             return std::nullopt;
         }
@@ -159,8 +177,6 @@ public:
         }
         return lexpr;
     }
-
-#define check_consume(ttype, msg) if (peekc().type == ttype ) { consume(); } else {std::cerr << (msg) << std::endl;exit(1);}
 
 
     std::optional<NodeStmt *> parse_stmt() {
@@ -230,3 +246,9 @@ private:
     size_t m_index = 0;
     ArenaAllocator m_allocator;
 };
+#undef check_consume
+#undef new_falc
+#undef aalloc
+#undef peekc
+#undef peekval
+#undef peekhas

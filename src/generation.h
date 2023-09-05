@@ -5,8 +5,6 @@
 #include <unordered_map>
 #include "parser.h"
 
-// TODO: get rid of this godawful syntactic mess
-// why have I done this
 #define mk_vis_b() struct _MyVisitor { Generator* gen; explicit _MyVisitor(Generator* gen) : gen(gen) {}
 #define mk_vis_e(input) }; _MyVisitor _vis(this); std::visit(_vis, input);
 #define vis(tdec) void operator()(const tdec* i) const
@@ -16,17 +14,21 @@ public:
 
     void gen_term(const NodeTerm* term) {
         mk_vis_b()
-           vis(NodeTermIntLit) {
-               gen->m_output << "mov rax, " << i->int_lit.value.value() << "\n";
-               gen->push("rax");
-           }
-           vis(NodeTermIdent) {
-               if (!gen->m_vars.contains(i->ident.value.value())) {
-                   std::cerr << "ERR: Variable '" << i->ident.value.value() << "' does not exist" << std::endl;
-                   exit(1);
-               }
-               gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(i->ident.value.value()).stack_loc - 1) * 8) + "]");
-           }
+
+            vis(NodeTermIntLit) {
+                gen->m_output << "mov rax, " << i->int_lit.value.value() << "\n";
+                gen->push("rax");
+            }
+            vis(NodeTermIdent) {
+                if (!gen->m_vars.contains(i->ident.value.value())) {
+                    std::cerr << "ERR: Variable '" << i->ident.value.value() << "' does not exist" << std::endl;
+                    exit(1);
+                }
+                gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(i->ident.value.value()).stack_loc - 1) * 8) + "]");
+            }
+            vis(NodeTermParen) {
+                gen->gen_expr(i->expr);
+            }
         mk_vis_e(term->var)
     }
 
@@ -50,8 +52,12 @@ public:
 
             }
             vis(NodeBinExprDiv) {
-                std::cout << "Dividing not implemented" << std::endl;
-                exit(1);
+                gen->gen_expr(i->lhs);
+                gen->gen_expr(i->rhs);
+                gen->pop("rbx");
+                gen->pop("rax");
+                gen->m_output << "div rbx\n";
+                gen->push("rax");
             }
             vis(NodeBinExprMul) {
                 gen->gen_expr(i->lhs);
