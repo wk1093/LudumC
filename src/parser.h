@@ -56,16 +56,18 @@ new_binex(NodeBinExprAdd)
 new_binex(NodeBinExprMul)
 new_binex(NodeBinExprSub)
 new_binex(NodeBinExprDiv)
+new_binex(NodeBinExprMod)
 // TODO: more bin exprs
 // TODO: correct order of operations (how tf i do this)
 
 struct NodeBinExpr {
-    std::variant<NodeBinExprAdd*, NodeBinExprMul*, NodeBinExprSub*, NodeBinExprDiv*> var;
+    std::variant<NodeBinExprAdd*, NodeBinExprMul*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprMod*> var;
 
     new_falc(NodeBinExpr, x->var = var, NodeBinExprAdd *var);
     new_falc(NodeBinExpr, x->var = var, NodeBinExprMul *var);
     new_falc(NodeBinExpr, x->var = var, NodeBinExprSub *var);
     new_falc(NodeBinExpr, x->var = var, NodeBinExprDiv *var);
+    new_falc(NodeBinExpr, x->var = var, NodeBinExprMod *var);
 
     new_falc(NodeBinExpr,);
 };
@@ -167,6 +169,7 @@ public:
             else binop(TokenType::c_minus, NodeBinExprSub)
             else binop(TokenType::c_star, NodeBinExprMul)
             else binop(TokenType::c_slash, NodeBinExprDiv)
+            else binop(TokenType::c_mod, NodeBinExprMod)
 #undef binop
             else {
                 std::cerr << "Invalid expressionb" << std::endl;

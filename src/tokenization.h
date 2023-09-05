@@ -43,12 +43,13 @@ enum class TokenType { // k_ = keyword l_ = literal c_ = char/symbol b_ = builti
     c_minus,
     c_star,
     c_slash,
+    c_mod
 };
 
 std::optional<int> bin_prec(TokenType type) {
     if (type == TokenType::c_plus || type == TokenType::c_minus) {
         return 0;
-    } else if (type == TokenType::c_star || type == TokenType::c_slash) {
+    } else if (type == TokenType::c_star || type == TokenType::c_slash || type == TokenType::c_mod) {
         return 1;
     } else {
         return std::nullopt;
@@ -115,6 +116,7 @@ public:
             else tok_c('-', TokenType::c_minus)
             else tok_c('*', TokenType::c_star)
             else tok_c('/', TokenType::c_slash)
+            else tok_c('%', TokenType::c_mod)
             else if (std::isspace(peekval())) {
                 consume();
             } else {

@@ -1,2 +1,3 @@
 let x = (10 - 2 * 3) / 2;
-exit(x);
+let y = (x + 1) % 8;
+exit(y);

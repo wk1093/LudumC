@@ -67,6 +67,14 @@ public:
                 gen->m_output << "mul rbx\n";
                 gen->push("rax");
             }
+            vis(NodeBinExprMod) {
+                gen->gen_expr(i->lhs);
+                gen->gen_expr(i->rhs);
+                gen->pop("rbx");
+                gen->pop("rax");
+                gen->m_output << "div rbx\n";
+                gen->push("rdx");
+        }
         mk_vis_e(binexpr->var)
     }
 
