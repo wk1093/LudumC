@@ -8,38 +8,39 @@
 #define peekhas(i) peek(i).has_value()
 #define peekval(i) peek(i).value()
 #define peekc(i) peek(i).has_value() && peek(i).value()
+#define peekct(i) peek(i).has_value() && peek(i).value().type
 #define aalloc(T, ...) (T::_new(&m_allocator,##__VA_ARGS__))
 
 #define new_falc(T, body, ...) static T* _new(ArenaAllocator* m_allocator,##__VA_ARGS__) { auto* x = m_allocator->alloc<T>(); body; return x; }
 
 // TODO: clean up this mess of macros and structs
 
-struct NodeTermIntLit {
+struct NodeExprTermIntLit {
     Token int_lit;
 
-    new_falc(NodeTermIntLit, x->int_lit = std::move(int_lit), Token int_lit);
+    new_falc(NodeExprTermIntLit, x->int_lit = std::move(int_lit), Token int_lit);
 };
 
-struct NodeTermIdent {
+struct NodeExprTermIdent {
     Token ident;
 
-    new_falc(NodeTermIdent, x->ident = std::move(ident), Token ident);
+    new_falc(NodeExprTermIdent, x->ident = std::move(ident), Token ident);
 };
 
 struct NodeExpr;
 
-struct NodeTermParen {
+struct NodeExprTermParen {
     NodeExpr *expr;
 
-    new_falc(NodeTermParen, x->expr = expr, NodeExpr *expr);
+    new_falc(NodeExprTermParen, x->expr = expr, NodeExpr *expr);
 };
 
-struct NodeTerm {
-    std::variant<NodeTermIntLit *, NodeTermIdent *, NodeTermParen*> var;
+struct NodeExprTerm {
+    std::variant<NodeExprTermIntLit *, NodeExprTermIdent *, NodeExprTermParen*> var;
 
-    new_falc(NodeTerm, x->var = var, NodeTermIntLit *var);
-    new_falc(NodeTerm, x->var = var, NodeTermIdent *var);
-    new_falc(NodeTerm, x->var = var, NodeTermParen *var);
+    new_falc(NodeExprTerm, x->var = var, NodeExprTermIntLit *var);
+    new_falc(NodeExprTerm, x->var = var, NodeExprTermIdent *var);
+    new_falc(NodeExprTerm, x->var = var, NodeExprTermParen *var);
 };
 
 #define new_binex(name)\
@@ -52,31 +53,31 @@ new_falc(name, x->lhs = lhs; x->rhs = nullptr, NodeExpr* lhs);\
 new_falc(name, x->lhs = nullptr; x->rhs = nullptr);\
 };
 
-new_binex(NodeBinExprAdd)
-new_binex(NodeBinExprMul)
-new_binex(NodeBinExprSub)
-new_binex(NodeBinExprDiv)
-new_binex(NodeBinExprMod)
+new_binex(NodeExprBinAdd)
+new_binex(NodeExprBinMul)
+new_binex(NodeExprBinSub)
+new_binex(NodeExprBinDiv)
+new_binex(NodeExprBinMod)
 // TODO: more bin exprs
 // TODO: correct order of operations (how tf i do this)
 
-struct NodeBinExpr {
-    std::variant<NodeBinExprAdd*, NodeBinExprMul*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprMod*> var;
+struct NodeExprBin {
+    std::variant<NodeExprBinAdd*, NodeExprBinMul*, NodeExprBinSub*, NodeExprBinDiv*, NodeExprBinMod*> var;
 
-    new_falc(NodeBinExpr, x->var = var, NodeBinExprAdd *var);
-    new_falc(NodeBinExpr, x->var = var, NodeBinExprMul *var);
-    new_falc(NodeBinExpr, x->var = var, NodeBinExprSub *var);
-    new_falc(NodeBinExpr, x->var = var, NodeBinExprDiv *var);
-    new_falc(NodeBinExpr, x->var = var, NodeBinExprMod *var);
+    new_falc(NodeExprBin, x->var = var, NodeExprBinAdd *var);
+    new_falc(NodeExprBin, x->var = var, NodeExprBinMul *var);
+    new_falc(NodeExprBin, x->var = var, NodeExprBinSub *var);
+    new_falc(NodeExprBin, x->var = var, NodeExprBinDiv *var);
+    new_falc(NodeExprBin, x->var = var, NodeExprBinMod *var);
 
-    new_falc(NodeBinExpr,);
+    new_falc(NodeExprBin,);
 };
 
 struct NodeExpr {
-    std::variant<NodeTerm *, NodeBinExpr *> var;
+    std::variant<NodeExprTerm *, NodeExprBin *> var;
 
-    new_falc(NodeExpr, x->var = var, NodeTerm *var);
-    new_falc(NodeExpr, x->var = var, NodeBinExpr *var);
+    new_falc(NodeExpr, x->var = var, NodeExprTerm *var);
+    new_falc(NodeExpr, x->var = var, NodeExprBin *var);
 };
 
 struct NodeStmtExit {
@@ -94,11 +95,20 @@ struct NodeStmtLet {
     new_falc(NodeStmtLet, x->ident = std::move(ident); x->expr = nullptr, Token ident);
 };
 
+struct NodeStmt;
+
+struct NodeStmtScope {
+    std::vector<NodeStmt *> stmts;
+
+    new_falc(NodeStmtScope,);
+};
+
 struct NodeStmt {
-    std::variant<NodeStmtExit *, NodeStmtLet *> var;
+    std::variant<NodeStmtExit*, NodeStmtLet*, NodeStmtScope*> var;
 
     new_falc(NodeStmt, x->var = var, NodeStmtExit *var);
     new_falc(NodeStmt, x->var = var, NodeStmtLet *var);
+    new_falc(NodeStmt, x->var = var, NodeStmtScope *var);
 };
 
 struct NodeProg {
@@ -109,13 +119,13 @@ class Parser {
 public:
     explicit Parser(std::vector<Token> tokens) : m_tokens(std::move(tokens)), m_allocator(1024 * 1024 * 4) {} // 4 MB
 
-    std::optional<NodeTerm *> parse_term() {
+    std::optional<NodeExprTerm *> parse_term() {
         if (peekc().type == TokenType::l_int) {
-            auto term_int_lit = aalloc(NodeTermIntLit, consume());
-            return aalloc(NodeTerm, term_int_lit);
+            auto term_int_lit = aalloc(NodeExprTermIntLit, consume());
+            return aalloc(NodeExprTerm, term_int_lit);
         } else if (peekc().type == TokenType::ident) {
-            auto term_ident = aalloc(NodeTermIdent, consume());
-            return aalloc(NodeTerm, term_ident);
+            auto term_ident = aalloc(NodeExprTermIdent, consume());
+            return aalloc(NodeExprTerm, term_ident);
         } else if (peekc().type == TokenType::c_lparen) {
             consume();
             auto expr = parse_expr();
@@ -125,8 +135,8 @@ public:
                 exit(1);
             }
             check_consume(TokenType::c_rparen, "Expected ')' after expression in parenthesis");
-            auto term_paren = aalloc(NodeTermParen, expr.value());
-            return aalloc(NodeTerm, term_paren);
+            auto term_paren = aalloc(NodeExprTermParen, expr.value());
+            return aalloc(NodeExprTerm, term_paren);
         } else {
             return std::nullopt;
         }
@@ -162,14 +172,14 @@ public:
                 std::cerr << "got token type " << (int) peekval().type << std::endl;
                 exit(1);
             }
-            auto expr =  aalloc(NodeBinExpr);
+            auto expr =  aalloc(NodeExprBin);
             auto lhs2 = aalloc(NodeExpr, expr);
 #define binop(tok, typ) if (op.type == tok) { lhs2->var = lexpr->var; auto mbinex = aalloc(typ, lhs2, term_rhs.value()); expr->var = mbinex; }
-            binop(TokenType::c_plus, NodeBinExprAdd)
-            else binop(TokenType::c_minus, NodeBinExprSub)
-            else binop(TokenType::c_star, NodeBinExprMul)
-            else binop(TokenType::c_slash, NodeBinExprDiv)
-            else binop(TokenType::c_mod, NodeBinExprMod)
+            binop(TokenType::c_plus, NodeExprBinAdd)
+            else binop(TokenType::c_minus, NodeExprBinSub)
+            else binop(TokenType::c_star, NodeExprBinMul)
+            else binop(TokenType::c_slash, NodeExprBinDiv)
+            else binop(TokenType::c_mod, NodeExprBinMod)
 #undef binop
             else {
                 std::cerr << "Invalid expressionb" << std::endl;
@@ -211,10 +221,17 @@ public:
             }
             check_consume(TokenType::c_semi, "Expected ';' after let");
             return aalloc(NodeStmt, stmt_let);
-        } else {
-            std::cerr << "Invalid statement" << std::endl;
-            std::cerr << "got token type " << (int) peekval().type << std::endl;
-            exit(1);
+        } else if (peekc().type == TokenType::c_lbrace) {
+            consume();
+            auto scope = aalloc(NodeStmtScope);
+            while (auto stmt = parse_stmt()) {
+                scope->stmts.push_back(stmt.value());
+            }
+            check_consume(TokenType::c_rbrace, "Expected '}' after scope");
+            return aalloc(NodeStmt, scope);
+        }
+        else {
+            return {};
         }
     }
 

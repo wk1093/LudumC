@@ -11,7 +11,7 @@ public:
     T* alloc() {
         void* offset = m_offset;
         m_offset += sizeof(T);
-        if (m_offset> m_buffer + m_size) {
+        if (m_offset > m_buffer + m_size) {
             std::cerr << "ERR: ArenaAllocator ran out of memory" << std::endl;
             exit(1);
         }

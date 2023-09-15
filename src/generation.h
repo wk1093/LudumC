@@ -2,7 +2,8 @@
 
 #include <utility>
 #include <variant>
-#include <unordered_map>
+#include <vector>
+#include <algorithm>
 #include "parser.h"
 
 #define mk_vis_b() struct _MyVisitor { Generator* gen; explicit _MyVisitor(Generator* gen) : gen(gen) {}
@@ -12,29 +13,30 @@ class Generator {
 public:
     explicit Generator(NodeProg prog) : m_prog(std::move(prog)) {}
 
-    void gen_term(const NodeTerm* term) {
+    void gen_term(const NodeExprTerm* term) {
         mk_vis_b()
 
-            vis(NodeTermIntLit) {
+            vis(NodeExprTermIntLit) {
                 gen->m_output << "mov rax, " << i->int_lit.value.value() << "\n";
                 gen->push("rax");
             }
-            vis(NodeTermIdent) {
-                if (!gen->m_vars.contains(i->ident.value.value())) {
+            vis(NodeExprTermIdent) {
+                auto it = std::find_if(gen->m_vars.cbegin(), gen->m_vars.cend(), [&](const Var& var){ return var.name == i->ident.value.value();});
+                if (it == gen->m_vars.cend()) {
                     std::cerr << "ERR: Variable '" << i->ident.value.value() << "' does not exist" << std::endl;
                     exit(1);
                 }
-                gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-gen->m_vars.at(i->ident.value.value()).stack_loc - 1) * 8) + "]");
+                gen->push("QWORD [rsp+" + std::to_string((gen->m_stack_size-(*it).stack_loc - 1) * 8) + "]");
             }
-            vis(NodeTermParen) {
+            vis(NodeExprTermParen) {
                 gen->gen_expr(i->expr);
             }
         mk_vis_e(term->var)
     }
 
-    void gen_bin_expr(const NodeBinExpr* binexpr) {
+    void gen_bin_expr(const NodeExprBin* binexpr) {
         mk_vis_b()
-            vis(NodeBinExprAdd) {
+            vis(NodeExprBinAdd) {
                 gen->gen_expr(i->lhs);
                 gen->gen_expr(i->rhs);
                 gen->pop("rbx");
@@ -42,7 +44,7 @@ public:
                 gen->m_output << "add rax, rbx\n";
                 gen->push("rax");
             }
-            vis(NodeBinExprSub) {
+            vis(NodeExprBinSub) {
                 gen->gen_expr(i->lhs);
                 gen->gen_expr(i->rhs);
                 gen->pop("rbx");
@@ -51,7 +53,7 @@ public:
                 gen->push("rax");
 
             }
-            vis(NodeBinExprDiv) {
+            vis(NodeExprBinDiv) {
                 gen->gen_expr(i->lhs);
                 gen->gen_expr(i->rhs);
                 gen->pop("rbx");
@@ -59,7 +61,7 @@ public:
                 gen->m_output << "div rbx\n";
                 gen->push("rax");
             }
-            vis(NodeBinExprMul) {
+            vis(NodeExprBinMul) {
                 gen->gen_expr(i->lhs);
                 gen->gen_expr(i->rhs);
                 gen->pop("rbx");
@@ -67,7 +69,7 @@ public:
                 gen->m_output << "mul rbx\n";
                 gen->push("rax");
             }
-            vis(NodeBinExprMod) {
+            vis(NodeExprBinMod) {
                 gen->gen_expr(i->lhs);
                 gen->gen_expr(i->rhs);
                 gen->pop("rbx");
@@ -80,10 +82,10 @@ public:
 
     void gen_expr(const NodeExpr* expr) {
         mk_vis_b()
-            vis(NodeTerm) {
+            vis(NodeExprTerm) {
                 gen->gen_term(i);
             }
-            vis(NodeBinExpr) {
+            vis(NodeExprBin) {
                 gen->gen_bin_expr(i);
             }
         mk_vis_e(expr->var)
@@ -100,12 +102,21 @@ public:
             }
             vis(NodeStmtLet) {
                 gen->m_output << "; let\n";
-                if (gen->m_vars.contains(i->ident.value.value())) {
+                //if (gen->m_vars.contains(i->ident.value.value())) {
+                auto it = std::find_if(gen->m_vars.cbegin(), gen->m_vars.cend(), [&](const Var& var){ return var.name == i->ident.value.value();});
+                if (it != gen->m_vars.cend()) {
                     std::cerr << "ERR: Variable '" << i->ident.value.value() << "' already exists" << std::endl;
                     exit(1);
                 }
-                gen->m_vars.insert({i->ident.value.value(), Var{.stack_loc = gen->m_stack_size}});
+                gen->m_vars.push_back(Var{.name=i->ident.value.value(), .stack_loc=gen->m_stack_size});
                 gen->gen_expr(i->expr);
+            }
+            vis(NodeStmtScope) {
+                gen->begin_scope();
+                for (const NodeStmt* stmt : i->stmts) {
+                    gen->gen_stmt(stmt);
+                }
+                gen->end_scope();
             }
         mk_vis_e(stmt->var)
     }
@@ -133,7 +144,27 @@ private:
         m_stack_size--;
     }
 
+    void begin_scope() {
+        m_output << "; begin_scope\n";
+        m_scopes.push_back(m_vars.size());
+    }
+
+    void end_scope() {
+        m_output << "; end_scope\n";
+        size_t pop_count = m_vars.size() - m_scopes.back();
+        m_output << "add rsp, " << pop_count * 8 << "\n";
+        m_stack_size -= pop_count;
+        for (int i = 0; i < pop_count; i++) {
+            m_vars.pop_back();
+        }
+        m_scopes.pop_back();
+
+
+
+    }
+
     struct Var {
+        std::string name;
         size_t stack_loc;
         // TODO: type
     };
@@ -141,5 +172,6 @@ private:
     const NodeProg m_prog;
     std::stringstream m_output;
     size_t m_stack_size = 0;
-    std::unordered_map<std::string, Var> m_vars{};
+    std::vector<Var> m_vars;
+    std::vector<size_t> m_scopes{};
 };

@@ -43,7 +43,9 @@ enum class TokenType { // k_ = keyword l_ = literal c_ = char/symbol b_ = builti
     c_minus,
     c_star,
     c_slash,
-    c_mod
+    c_mod,
+    c_lbrace, // 26
+    c_rbrace,
 };
 
 std::optional<int> bin_prec(TokenType type) {
@@ -117,6 +119,8 @@ public:
             else tok_c('*', TokenType::c_star)
             else tok_c('/', TokenType::c_slash)
             else tok_c('%', TokenType::c_mod)
+            else tok_c('{', TokenType::c_lbrace)
+            else tok_c('}', TokenType::c_rbrace)
             else if (std::isspace(peekval())) {
                 consume();
             } else {
