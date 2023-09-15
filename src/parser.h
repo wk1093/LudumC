@@ -97,18 +97,28 @@ struct NodeStmtLet {
 
 struct NodeStmt;
 
-struct NodeStmtScope {
+struct NodeScope {
     std::vector<NodeStmt *> stmts;
 
-    new_falc(NodeStmtScope,);
+    new_falc(NodeScope,);
+};
+
+struct NodeStmtIf {
+    NodeExpr *expr;
+    NodeStmt *stmt;
+
+    new_falc(NodeStmtIf, x->expr = expr; x->stmt = stmt, NodeExpr *expr, NodeStmt *stmt);
+    new_falc(NodeStmtIf, x->expr = expr; x->stmt = nullptr, NodeExpr *expr);
+    new_falc(NodeStmtIf, x->expr = nullptr; x->stmt = nullptr);
 };
 
 struct NodeStmt {
-    std::variant<NodeStmtExit*, NodeStmtLet*, NodeStmtScope*> var;
+    std::variant<NodeStmtExit*, NodeStmtLet*, NodeScope*, NodeStmtIf*> var;
 
     new_falc(NodeStmt, x->var = var, NodeStmtExit *var);
     new_falc(NodeStmt, x->var = var, NodeStmtLet *var);
-    new_falc(NodeStmt, x->var = var, NodeStmtScope *var);
+    new_falc(NodeStmt, x->var = var, NodeScope *var);
+    new_falc(NodeStmt, x->var = var, NodeStmtIf *var);
 };
 
 struct NodeProg {
@@ -191,6 +201,19 @@ public:
         return lexpr;
     }
 
+    std::optional<NodeScope*> parse_scope() {
+        if (!(peekc().type == TokenType::c_lbrace)) {
+            return {};
+        }
+        consume();
+        auto scope = aalloc(NodeScope);
+        while (auto stmt = parse_stmt()) {
+            scope->stmts.push_back(stmt.value());
+        }
+        check_consume(TokenType::c_rbrace, "Expected '}' after scope");
+        return scope;
+
+    }
 
     std::optional<NodeStmt *> parse_stmt() {
         if (peekc().type == TokenType::b_exit && peekc(1).type == TokenType::c_lparen) {
@@ -222,13 +245,32 @@ public:
             check_consume(TokenType::c_semi, "Expected ';' after let");
             return aalloc(NodeStmt, stmt_let);
         } else if (peekc().type == TokenType::c_lbrace) {
-            consume();
-            auto scope = aalloc(NodeStmtScope);
-            while (auto stmt = parse_stmt()) {
-                scope->stmts.push_back(stmt.value());
+            if (auto scope = parse_scope()) {
+                return aalloc(NodeStmt, scope.value());
+            } else {
+                std::cerr << "Invalid scope!" << std::endl;
+                exit(1);
             }
-            check_consume(TokenType::c_rbrace, "Expected '}' after scope");
-            return aalloc(NodeStmt, scope);
+
+        } else if (peekc().type == TokenType::k_if) {
+            consume();
+            check_consume(TokenType::c_lparen, "Expected '(' after if");
+            auto stmt_if = aalloc(NodeStmtIf);
+            if (auto expr = parse_expr()) {
+                stmt_if->expr = expr.value();
+            } else {
+                std::cerr << "Expected expr in if" << std::endl;
+                exit(1);
+            }
+            check_consume(TokenType::c_rparen, "Expected ')' after if");
+            if (auto stmt = parse_stmt()) {
+                stmt_if->stmt = stmt.value();
+            } else {
+                std::cerr << "Expected scope" << std::endl;
+                exit(1);
+            }
+            return aalloc(NodeStmt, stmt_if);
+
         }
         else {
             return {};

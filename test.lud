@@ -1,8 +1,6 @@
 let x = (10 - 2 * 3) / 2;
-
-{
-    let y = 60;
+let y = 1;
+if (x-1) {
+    exit(69);
 }
-
-let y = (x + 1) % 8;
-exit(y);
+exit(1);
